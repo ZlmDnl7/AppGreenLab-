@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { api } from "../../lib/api";
+import { api, getApiErrorMessage } from "../../lib/api";
 import { Alert, Button, Field, Input, Card, CardBody, CardHeader } from "../../components/ui";
 
 const schema = z.object({
@@ -27,7 +27,7 @@ export function ForgotPasswordPage() {
         <Card>
           <CardHeader
             title="Recuperar contraseña"
-            subtitle="Te enviaremos un enlace al correo si hay una cuenta registrada (revisa también spam)."
+            subtitle="Te enviaremos un enlace al correo si hay una cuenta registrada (revisa también spam). En el servidor gratuito la primera petición puede tardar hasta 1 minuto."
             right={<Link className="text-sm text-brand-700 hover:underline" to="/login">Login</Link>}
           />
           <CardBody>
@@ -49,10 +49,9 @@ export function ForgotPasswordPage() {
                     return;
                   }
                 } catch (e: unknown) {
-                  const err = e as { response?: { data?: { error?: string }; status?: number } };
                   setMsg({
                     kind: "error",
-                    text: err?.response?.data?.error ?? "No se pudo procesar la solicitud"
+                    text: getApiErrorMessage(e)
                   });
                 }
               })}
