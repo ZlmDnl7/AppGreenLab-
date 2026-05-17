@@ -1,4 +1,8 @@
+import dns from "node:dns";
 import express from "express";
+
+/** Render no tiene ruta IPv6; Gmail por AAAA → ENETUNREACH al enviar correo. */
+dns.setDefaultResultOrder("ipv4first");
 import cors from "cors";
 import morgan from "morgan";
 import path from "path";

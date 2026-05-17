@@ -5,20 +5,26 @@ export function isSmtpConfigured(): boolean {
   return Boolean(env.SMTP_HOST && env.SMTP_FROM);
 }
 
-export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP no configurado");
-  }
-
-  const transporter = nodemailer.createTransport({
+function createSmtpTransporter() {
+  return nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
     auth:
       env.SMTP_USER !== undefined && env.SMTP_USER !== ""
         ? { user: env.SMTP_USER, pass: env.SMTP_PASS ?? "" }
         : undefined
   });
+}
+
+export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
+  if (!isSmtpConfigured()) {
+    throw new Error("SMTP no configurado");
+  }
+
+  const transporter = createSmtpTransporter();
 
   await transporter.sendMail({
     from: env.SMTP_FROM,
@@ -42,15 +48,7 @@ export async function sendProjectInvitationEmail(
     throw new Error("SMTP no configurado");
   }
 
-  const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    auth:
-      env.SMTP_USER !== undefined && env.SMTP_USER !== ""
-        ? { user: env.SMTP_USER, pass: env.SMTP_PASS ?? "" }
-        : undefined
-  });
+  const transporter = createSmtpTransporter();
 
   await transporter.sendMail({
     from: env.SMTP_FROM,
