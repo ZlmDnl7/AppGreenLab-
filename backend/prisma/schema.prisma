@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+  /// Evita escribir en node_modules (bloqueos EPERM/OneDrive) y mantiene tipos al día en el repo
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+  RESEARCHER
+}
+
+enum FactorType {
+  CONTROL
+  EXPERIMENTAL
+}
+
+enum LengthUnit {
+  CM
+  MM
+}
+
+enum ExperimentImageStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ProjectInvitationStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           UserRole @default(STUDENT)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  experiments    Experiment[]
+  resetTokens    PasswordResetToken[]
+  ownedProjects  Project[]       @relation("ProjectOwner")
+  projectMembers ProjectMember[]
+  activityLogs   ActivityLog[]
+  adminAuditAsActor  AdminAuditLog[] @relation("AdminAuditActor")
+  adminAuditAsTarget AdminAuditLog[] @relation("AdminAuditTarget")
+  projectInvitationsSent ProjectInvitation[] @relation("InvitationInviter")
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  createdAt DateTime @default(now())
+
+  actorAdminId          String?
+  actorAdmin            User?    @relation("AdminAuditActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+  actorEmailSnapshot    String
+
+  targetUserId          String?
+  targetUser            User?    @relation("AdminAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetEmailSnapshot   String
+  targetNameSnapshot    String?
+
+  detail String?
+
+  @@index([createdAt])
+  @@index([actorAdminId])
+  @@index([targetUserId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members        ProjectMember[]
+  experiments    Experiment[]
+  activityLogs   ActivityLog[]
+  invitations    ProjectInvitation[]
+
+  @@index([ownerId])
+}
+
+model ProjectInvitation {
+  id        String                  @id @default(cuid())
+  email     String
+  tokenHash String                  @unique
+  status    ProjectInvitationStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime                @default(now())
+  acceptedAt DateTime?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  invitedById String
+  invitedBy   User   @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([email])
+  @@index([status])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  experimentId String?
+  experiment   Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+model Experiment {
+  id          String     @id @default(cuid())
+  name        String
+  seedType    String
+  date        DateTime
+  description String?
+  scaleUnit   LengthUnit @default(CM)
+
+  /// Resultados básicos (tasas, medias por factor); se recalcula al guardar datos
+  computedSummary Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  factors Factor[]
+  images  ExperimentImage[]
+  logs    ActivityLog[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Factor {
+  id        String     @id @default(cuid())
+  name      String
+  type      FactorType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  replicas Replica[]
+
+  @@index([experimentId])
+}
+
+model Replica {
+  id        String   @id @default(cuid())
+  code      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factorId String
+  factor   Factor @relation(fields: [factorId], references: [id], onDelete: Cascade)
+
+  seeds Seed[]
+
+  @@unique([factorId, code])
+  @@index([factorId])
+}
+
+model Seed {
+  id              String   @id @default(cuid())
+  seedNumber      Int
+  germinated      Boolean  @default(false)
+  rootLength      Float?
+  hypocotylLength Float?
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  replicaId String
+  replica   Replica @relation(fields: [replicaId], references: [id], onDelete: Cascade)
+
+  @@unique([replicaId, seedNumber])
+  @@index([replicaId])
+}
+
+model ExperimentImage {
+  id           String                @id @default(cuid())
+  status       ExperimentImageStatus @default(PENDING)
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}

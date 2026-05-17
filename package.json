@@ -1,0 +1,13 @@
+{
+  "name": "greenlab-data",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w backend & npm run dev -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend"
+  }
+}
+
