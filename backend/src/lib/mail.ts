@@ -12,9 +12,42 @@ export function isResendConfigured(): boolean {
   return Boolean(env.RESEND_API_KEY && env.RESEND_FROM);
 }
 
-/** Correo listo: Resend (HTTPS, funciona en Render Free) o SMTP (local / Render de pago). */
+/** Sin DNS: verifica un solo correo en brevo.com y envía a cualquier usuario (HTTPS, Render Free). */
+export function isBrevoConfigured(): boolean {
+  return Boolean(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL);
+}
+
 export function isEmailConfigured(): boolean {
-  return isResendConfigured() || isSmtpConfigured();
+  return isBrevoConfigured() || isResendConfigured() || isSmtpConfigured();
+}
+
+async function sendViaBrevo(to: string, subject: string, text: string, html: string): Promise<void> {
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": env.BREVO_API_KEY,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      sender: { name: env.BREVO_SENDER_NAME, email: env.BREVO_SENDER_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text
+    })
+  });
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body.message) detail = body.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
 }
 
 async function sendViaResend(to: string, subject: string, text: string, html: string): Promise<void> {
@@ -63,6 +96,10 @@ async function sendViaSmtp(to: string, subject: string, text: string, html: stri
 async function sendEmail(to: string, subject: string, text: string, html: string): Promise<void> {
   if (!isEmailConfigured()) {
     throw new Error("Correo no configurado");
+  }
+  if (isBrevoConfigured()) {
+    await sendViaBrevo(to, subject, text, html);
+    return;
   }
   if (isResendConfigured()) {
     await sendViaResend(to, subject, text, html);

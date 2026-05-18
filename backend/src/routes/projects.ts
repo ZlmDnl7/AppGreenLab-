@@ -283,7 +283,7 @@ projectsRouter.post("/projects/:id/members", async (req, res, next) => {
     if (!isEmailConfigured()) {
       return res.status(503).json({
         error:
-          "El envío de correo no está configurado. En producción define RESEND_API_KEY y RESEND_FROM. En local puedes usar SMTP."
+          "El envío de correo no está configurado. En producción usa BREVO_API_KEY y BREVO_SENDER_EMAIL."
       });
     }
 

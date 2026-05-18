@@ -75,7 +75,7 @@ authRouter.post("/auth/forgot-password", async (req, res, next) => {
     if (!isEmailConfigured()) {
       return res.status(503).json({
         error:
-          "El envío de correo no está configurado. En producción define RESEND_API_KEY y RESEND_FROM (Render Free). En local puedes usar SMTP_HOST y SMTP_FROM."
+          "El envío de correo no está configurado. En producción usa BREVO_API_KEY y BREVO_SENDER_EMAIL (brevo.com). En local puedes usar SMTP."
       });
     }
 
@@ -96,10 +96,19 @@ authRouter.post("/auth/forgot-password", async (req, res, next) => {
       // eslint-disable-next-line no-console
       console.error("Error enviando correo de recuperación:", e);
       const errText = e instanceof Error ? e.message : String(e);
-      let userMsg = "No se pudo enviar el correo. Revisa la configuración SMTP o intenta más tarde.";
-      if (errText.includes("only send testing") || errText.includes("verify a domain")) {
+      let userMsg = "No se pudo enviar el correo. Revisa BREVO_API_KEY y BREVO_SENDER_EMAIL en Render, o intenta más tarde.";
+      if (
+        errText.includes("only send testing") ||
+        errText.includes("verify a domain") ||
+        errText.includes("own email")
+      ) {
         userMsg =
-          "El proveedor SMTP rechazó el envío (suele pasar con remitentes de prueba o dominio no verificado). Revisa SMTP_FROM y la documentación de tu proveedor de correo.";
+          "Resend en modo prueba no envía a todos. Usa Brevo (BREVO_API_KEY) o verifica un dominio en Resend.";
+      } else if (errText.toLowerCase().includes("sender") || errText.includes("not verified")) {
+        userMsg =
+          "El remitente no está verificado en Brevo. En brevo.com confirma BREVO_SENDER_EMAIL (enlace en tu bandeja).";
+      } else if (errText.includes("API key") || errText.includes("Invalid") || errText.includes("unauthorised")) {
+        userMsg = "La clave de correo no es válida. Revisa BREVO_API_KEY en Render.";
       }
       return res.status(500).json({ error: userMsg });
     }

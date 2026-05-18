@@ -31,7 +31,15 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS ?? "",
   SMTP_FROM: process.env.SMTP_FROM ?? "",
 
-  /** Producción en Render Free: correo por API HTTPS (puerto 443). https://resend.com */
+  /**
+   * Producción sin DNS: Brevo verifica UN correo remitente (Gmail/U) y envía a cualquier usuario.
+   * https://www.brevo.com — API Keys → clave v3 (xkeysib-...)
+   */
+  BREVO_API_KEY: process.env.BREVO_API_KEY ?? "",
+  BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL ?? "",
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME ?? "GreenLab Data",
+
+  /** Alternativa si verificas dominio en DNS. https://resend.com */
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
   RESEND_FROM: process.env.RESEND_FROM ?? "",
 
