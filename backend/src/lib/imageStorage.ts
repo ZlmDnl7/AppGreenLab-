@@ -56,3 +56,30 @@ export function saveExperimentImageToDisk(
   fs.writeFileSync(path.join(uploadDirAbs, filename), buffer);
   return { storagePath: filename };
 }
+
+/** public_id de Cloudinary a partir de la URL guardada en storagePath. */
+export function cloudinaryPublicIdFromUrl(url: string): string | null {
+  const marker = "/upload/";
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  let rest = url.slice(idx + marker.length).replace(/^v\d+\//, "");
+  const q = rest.indexOf("?");
+  if (q !== -1) rest = rest.slice(0, q);
+  return rest.replace(/\.[a-zA-Z0-9]+$/, "") || null;
+}
+
+export async function deleteStoredExperimentImage(
+  storagePath: string,
+  uploadDirAbs: string
+): Promise<void> {
+  if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
+    if (!isCloudStorageConfigured()) return;
+    const publicId = cloudinaryPublicIdFromUrl(storagePath);
+    if (!publicId) return;
+    configureCloudinary();
+    await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+    return;
+  }
+  const filePath = path.join(uploadDirAbs, storagePath);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+}

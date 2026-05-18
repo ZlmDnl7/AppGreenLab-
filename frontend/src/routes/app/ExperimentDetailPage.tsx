@@ -515,8 +515,10 @@ export function ExperimentDetailPage() {
                       <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
                         <img src={experimentImageUrl(img.storagePath)} className="h-36 w-full object-cover" />
                       </div>
-                      {img.status === "PENDING" && canEdit ? (
-                        <div className="mt-3 flex gap-2">
+                      {canEdit ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {img.status === "PENDING" ? (
+                            <>
                           <Button
                             variant="primary"
                             disabled={!!busy[`img_${img.id}`]}
@@ -533,7 +535,7 @@ export function ExperimentDetailPage() {
                             Aceptar
                           </Button>
                           <Button
-                            variant="danger"
+                            variant="ghost"
                             disabled={!!busy[`img_${img.id}`]}
                             onClick={async () => {
                               setBusy((m) => ({ ...m, [`img_${img.id}`]: true }));
@@ -546,6 +548,32 @@ export function ExperimentDetailPage() {
                             }}
                           >
                             Rechazar
+                          </Button>
+                            </>
+                          ) : null}
+                          <Button
+                            variant="danger"
+                            disabled={!!busy[`img_del_${img.id}`]}
+                            onClick={async () => {
+                              if (
+                                !window.confirm(
+                                  "¿Eliminar esta imagen? Se borrará de forma permanente."
+                                )
+                              ) {
+                                return;
+                              }
+                              setBusy((m) => ({ ...m, [`img_del_${img.id}`]: true }));
+                              try {
+                                await api.delete(`/images/${img.id}`);
+                                await load();
+                              } catch (e: unknown) {
+                                setUploadErr(getApiErrorMessage(e));
+                              } finally {
+                                setBusy((m) => ({ ...m, [`img_del_${img.id}`]: false }));
+                              }
+                            }}
+                          >
+                            {busy[`img_del_${img.id}`] ? "Eliminando..." : "Eliminar"}
                           </Button>
                         </div>
                       ) : null}

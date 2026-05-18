@@ -7,6 +7,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import {
+  deleteStoredExperimentImage,
   imagePublicUrl,
   isCloudStorageConfigured,
   saveExperimentImageToDisk,
@@ -467,6 +468,42 @@ experimentsRouter.patch("/images/:id/status", async (req, res, next) => {
       });
     }
     return res.json({ image: updated });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+experimentsRouter.delete("/images/:id", async (req, res, next) => {
+  try {
+    const imageId = z.string().min(1).parse(req.params.id);
+
+    const img = await prisma.experimentImage.findUnique({
+      where: { id: imageId },
+      include: { experiment: true }
+    });
+    if (!img) return res.status(404).json({ error: "Imagen no encontrada" });
+
+    const exp = await getExperimentForAccess(img.experimentId);
+    if (!exp || !canWriteExperiment(req.user!, exp)) {
+      return res.status(404).json({ error: "Imagen no encontrada" });
+    }
+
+    await deleteStoredExperimentImage(img.storagePath, uploadDirAbs);
+    await prisma.experimentImage.delete({ where: { id: imageId } });
+
+    if (exp.projectId) {
+      await prisma.activityLog.create({
+        data: {
+          projectId: exp.projectId,
+          userId: req.user!.id,
+          action: "IMAGE_DELETED",
+          experimentId: img.experimentId,
+          detail: img.originalName
+        }
+      });
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
     return next(err);
   }
