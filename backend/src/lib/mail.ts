@@ -1,13 +1,19 @@
+import dns from "node:dns/promises";
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 import { env } from "./env.js";
 
 export function isSmtpConfigured(): boolean {
   return Boolean(env.SMTP_HOST && env.SMTP_FROM);
 }
 
-function createSmtpTransporter() {
-  return nodemailer.createTransport({
-    host: env.SMTP_HOST,
+/** Render sin IPv6: conectar a Gmail por IPv4 explícita (evita ENETUNREACH en AAAA). */
+async function createSmtpTransporter() {
+  const hostname = env.SMTP_HOST;
+  const { address } = await dns.lookup(hostname, { family: 4 });
+
+  const options: SMTPTransport.Options = {
+    host: address,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
     connectionTimeout: 20_000,
@@ -15,8 +21,13 @@ function createSmtpTransporter() {
     auth:
       env.SMTP_USER !== undefined && env.SMTP_USER !== ""
         ? { user: env.SMTP_USER, pass: env.SMTP_PASS ?? "" }
-        : undefined
-  });
+        : undefined,
+    tls: {
+      servername: hostname
+    }
+  };
+
+  return nodemailer.createTransport(options);
 }
 
 export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
@@ -24,7 +35,7 @@ export async function sendPasswordResetEmail(to: string, resetLink: string): Pro
     throw new Error("SMTP no configurado");
   }
 
-  const transporter = createSmtpTransporter();
+  const transporter = await createSmtpTransporter();
 
   await transporter.sendMail({
     from: env.SMTP_FROM,
@@ -48,7 +59,7 @@ export async function sendProjectInvitationEmail(
     throw new Error("SMTP no configurado");
   }
 
-  const transporter = createSmtpTransporter();
+  const transporter = await createSmtpTransporter();
 
   await transporter.sendMail({
     from: env.SMTP_FROM,
