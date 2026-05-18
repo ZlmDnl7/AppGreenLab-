@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, API_URL, getApiErrorMessage } from "../../lib/api";
+import { api, experimentImageUrl, getApiErrorMessage } from "../../lib/api";
 import { useAuth } from "../../state/auth";
 import { Alert, Button, Card, CardBody, CardHeader, Field, Input, Textarea, cx } from "../../components/ui";
 
@@ -513,7 +513,7 @@ export function ExperimentDetailPage() {
                         <StatusPill status={img.status} />
                       </div>
                       <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                        <img src={`${API_URL}/uploads/${img.storagePath}`} className="h-36 w-full object-cover" />
+                        <img src={experimentImageUrl(img.storagePath)} className="h-36 w-full object-cover" />
                       </div>
                       {img.status === "PENDING" && canEdit ? (
                         <div className="mt-3 flex gap-2">

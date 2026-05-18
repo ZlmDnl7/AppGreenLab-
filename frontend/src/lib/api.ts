@@ -2,6 +2,14 @@ import axios from "axios";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
+/** Imagen de experimento: URL en Cloudinary o /uploads/ en local. */
+export function experimentImageUrl(storagePath: string): string {
+  if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
+    return storagePath;
+  }
+  return `${API_URL}/uploads/${storagePath}`;
+}
+
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 90_000,

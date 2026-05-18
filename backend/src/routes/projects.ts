@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { userProjectIds } from "../lib/experimentAccess.js";
 import { recomputeAndSaveSummary } from "../lib/summary.js";
 import { env } from "../lib/env.js";
-import { isSmtpConfigured, sendProjectInvitationEmail } from "../lib/mail.js";
+import { isEmailConfigured, sendProjectInvitationEmail } from "../lib/mail.js";
 import {
   createInviteToken,
   hashInviteToken,
@@ -280,10 +280,10 @@ projectsRouter.post("/projects/:id/members", async (req, res, next) => {
     const projectId = z.string().min(1).parse(req.params.id);
     const { email } = memberSchema.parse(req.body);
 
-    if (!isSmtpConfigured()) {
+    if (!isEmailConfigured()) {
       return res.status(503).json({
         error:
-          "El envío de correo no está configurado. Define SMTP_HOST y SMTP_FROM en backend/.env y reinicia el API."
+          "El envío de correo no está configurado. En producción define RESEND_API_KEY y RESEND_FROM. En local puedes usar SMTP."
       });
     }
 

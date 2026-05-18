@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { signAccessToken } from "../lib/auth.js";
 import { env } from "../lib/env.js";
-import { isSmtpConfigured, sendPasswordResetEmail } from "../lib/mail.js";
+import { isEmailConfigured, sendPasswordResetEmail } from "../lib/mail.js";
 import { acceptPendingInvitationsForUser } from "../lib/projectInvitations.js";
 
 export const authRouter = Router();
@@ -72,10 +72,10 @@ authRouter.post("/auth/forgot-password", async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.json({ ok: true });
 
-    if (!isSmtpConfigured()) {
+    if (!isEmailConfigured()) {
       return res.status(503).json({
         error:
-          "El envío de correo no está configurado en el servidor. En backend/.env define SMTP_HOST y SMTP_FROM (y SMTP_USER/SMTP_PASS si tu proveedor lo exige). Reinicia el API."
+          "El envío de correo no está configurado. En producción define RESEND_API_KEY y RESEND_FROM (Render Free). En local puedes usar SMTP_HOST y SMTP_FROM."
       });
     }
 

@@ -7,6 +7,8 @@ import cors from "cors";
 import morgan from "morgan";
 import path from "path";
 import { env } from "./lib/env.js";
+import { ensureStorageDirs } from "./lib/ensureStorage.js";
+import { bootstrapAdminFromEnv } from "./lib/bootstrapAdmin.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { experimentsRouter } from "./routes/experiments.js";
@@ -16,6 +18,8 @@ import { adminRouter } from "./routes/admin.js";
 import { invitationsPublicRouter, invitationsRouter } from "./routes/invitations.js";
 import { requireAuth } from "./middlewares/requireAuth.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+
+ensureStorageDirs();
 
 const app = express();
 
@@ -47,5 +51,6 @@ app.use(errorHandler);
 app.listen(env.PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`API GreenLab lista en http://localhost:${env.PORT}`);
+  void bootstrapAdminFromEnv();
 });
 

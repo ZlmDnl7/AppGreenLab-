@@ -7,6 +7,12 @@ import ExcelJS from "exceljs";
 import { prisma } from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import {
+  imagePublicUrl,
+  isCloudStorageConfigured,
+  saveExperimentImageToDisk,
+  uploadExperimentImage
+} from "../lib/imageStorage.js";
+import {
   canCreateExperimentInProject,
   canReadExperiment,
   canWriteExperiment,
@@ -372,18 +378,12 @@ experimentsRouter.patch("/seeds/:id", async (req, res, next) => {
 });
 
 const uploadDirAbs = path.resolve(process.cwd(), env.UPLOAD_DIR);
-fs.mkdirSync(uploadDirAbs, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDirAbs),
-  filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${Date.now()}_${safe}`);
-  }
-});
+if (!isCloudStorageConfigured()) {
+  fs.mkdirSync(uploadDirAbs, { recursive: true });
+}
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ok = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
@@ -403,13 +403,17 @@ experimentsRouter.post("/experiments/:id/image", upload.single("image"), async (
       return res.status(404).json({ error: "Experimento no encontrado" });
     }
 
+    const { storagePath } = isCloudStorageConfigured()
+      ? await uploadExperimentImage(file.buffer, file.originalname, file.mimetype)
+      : saveExperimentImageToDisk(uploadDirAbs, file.buffer, file.originalname);
+
     const rec = await prisma.experimentImage.create({
       data: {
         experimentId,
         originalName: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: file.size,
-        storagePath: file.filename,
+        storagePath,
         status: "PENDING"
       }
     });
@@ -425,7 +429,8 @@ experimentsRouter.post("/experiments/:id/image", upload.single("image"), async (
       });
     }
 
-    return res.status(201).json({ image: rec, url: `/uploads/${rec.storagePath}` });
+    const apiBase = `${req.protocol}://${req.get("host")}`;
+    return res.status(201).json({ image: rec, url: imagePublicUrl(rec.storagePath, apiBase) });
   } catch (err) {
     return next(err);
   }

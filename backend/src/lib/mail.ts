@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 import { env } from "./env.js";
 
@@ -7,8 +8,30 @@ export function isSmtpConfigured(): boolean {
   return Boolean(env.SMTP_HOST && env.SMTP_FROM);
 }
 
-/** Render sin IPv6: conectar a Gmail por IPv4 explícita (evita ENETUNREACH en AAAA). */
-async function createSmtpTransporter() {
+export function isResendConfigured(): boolean {
+  return Boolean(env.RESEND_API_KEY && env.RESEND_FROM);
+}
+
+/** Correo listo: Resend (HTTPS, funciona en Render Free) o SMTP (local / Render de pago). */
+export function isEmailConfigured(): boolean {
+  return isResendConfigured() || isSmtpConfigured();
+}
+
+async function sendViaResend(to: string, subject: string, text: string, html: string): Promise<void> {
+  const resend = new Resend(env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: env.RESEND_FROM,
+    to: [to],
+    subject,
+    text,
+    html
+  });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function sendViaSmtp(to: string, subject: string, text: string, html: string): Promise<void> {
   const hostname = env.SMTP_HOST;
   const { address } = await dns.lookup(hostname, { family: 4 });
 
@@ -27,26 +50,35 @@ async function createSmtpTransporter() {
     }
   };
 
-  return nodemailer.createTransport(options);
-}
-
-export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP no configurado");
-  }
-
-  const transporter = await createSmtpTransporter();
-
+  const transporter = nodemailer.createTransport(options);
   await transporter.sendMail({
     from: env.SMTP_FROM,
     to,
-    subject: "Recuperar contraseña — GreenLab Data",
-    text: `Hola,\n\nPara restablecer tu contraseña abre este enlace (válido 30 minutos):\n\n${resetLink}\n\nSi no solicitaste este cambio, ignora este mensaje.\n`,
-    html: `<p>Hola,</p>
+    subject,
+    text,
+    html
+  });
+}
+
+async function sendEmail(to: string, subject: string, text: string, html: string): Promise<void> {
+  if (!isEmailConfigured()) {
+    throw new Error("Correo no configurado");
+  }
+  if (isResendConfigured()) {
+    await sendViaResend(to, subject, text, html);
+    return;
+  }
+  await sendViaSmtp(to, subject, text, html);
+}
+
+export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
+  const subject = "Recuperar contraseña — GreenLab Data";
+  const text = `Hola,\n\nPara restablecer tu contraseña abre este enlace (válido 30 minutos):\n\n${resetLink}\n\nSi no solicitaste este cambio, ignora este mensaje.\n`;
+  const html = `<p>Hola,</p>
 <p>Para restablecer tu contraseña haz clic en el siguiente enlace (válido <strong>30 minutos</strong>):</p>
 <p><a href="${resetLink}">${resetLink}</a></p>
-<p>Si no solicitaste este cambio, ignora este mensaje.</p>`
-  });
+<p>Si no solicitaste este cambio, ignora este mensaje.</p>`;
+  await sendEmail(to, subject, text, html);
 }
 
 export async function sendProjectInvitationEmail(
@@ -55,21 +87,12 @@ export async function sendProjectInvitationEmail(
   inviterName: string,
   acceptLink: string
 ): Promise<void> {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP no configurado");
-  }
-
-  const transporter = await createSmtpTransporter();
-
-  await transporter.sendMail({
-    from: env.SMTP_FROM,
-    to,
-    subject: `Invitación al proyecto «${projectName}» — GreenLab Data`,
-    text: `Hola,\n\n${inviterName} te invitó a colaborar en el proyecto «${projectName}» en GreenLab Data.\n\nPara aceptar, abre este enlace (válido 7 días):\n\n${acceptLink}\n\nSi no tienes cuenta, regístrate con este mismo correo y luego abre el enlace.\n\nSi no esperabas esta invitación, ignora este mensaje.\n`,
-    html: `<p>Hola,</p>
+  const subject = `Invitación al proyecto «${projectName}» — GreenLab Data`;
+  const text = `Hola,\n\n${inviterName} te invitó a colaborar en el proyecto «${projectName}» en GreenLab Data.\n\nPara aceptar, abre este enlace (válido 7 días):\n\n${acceptLink}\n\nInicia sesión con el mismo correo de la invitación.\n\nSi no esperabas esta invitación, ignora este mensaje.\n`;
+  const html = `<p>Hola,</p>
 <p><strong>${inviterName}</strong> te invitó a colaborar en el proyecto <strong>«${projectName}»</strong> en GreenLab Data.</p>
 <p><a href="${acceptLink}">Aceptar invitación</a> (válido 7 días)</p>
-<p>Si aún no tienes cuenta, <a href="${acceptLink}">regístrate con este correo</a> y vuelve a abrir el enlace.</p>
-<p>Si no esperabas esta invitación, ignora este mensaje.</p>`
-  });
+<p>Inicia sesión con el mismo correo de esta invitación para aceptar.</p>
+<p>Si no esperabas esta invitación, ignora este mensaje.</p>`;
+  await sendEmail(to, subject, text, html);
 }
